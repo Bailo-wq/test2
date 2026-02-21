@@ -1,0 +1,282 @@
+# For advice on how to change settings please see
+# http://dev.mysql.com/doc/refman/8.0/en/server-configuration-defaults.html
+[mysql]
+
+prompt=\u$\d>
+
+[mysqld]
+server-id = 1
+bind-address = 192.168.139.132
+log-bin=/u102/mysql/binlog/logbin
+log-bin-index=/u102/mysql/binlog/idexlogbin.index
+binlog_expire_logs_seconds = 6042
+group_replication_ssl_mode=REQUIRED
+# expire_logs-days = 2
+
+slow_query_log
+slow_query_log_file=/u101/mysql/log/instance01/slow_query.log
+long-query-time=1
+general_log_file=/u101/mysql/log/instance01/general.log
+port=3340
+datadir=/u101/mysql/data/instance01
+socket=/u101/mysql/data/mysql.sock
+#socket=/var/lib/mysql/mysql.sock
+
+log-error=/u101/mysql/log/instance01/mysqld.log
+pid-file=/var/run/mysqld/mysqld.pid
+
+sort_buffer_size=16388608
+
+bind-address=0.0.0.0
+
+
+gtid_mode=ON
+enforce_gtid_consistency=ON
+binlog_format=ROW
+transaction_write_set_extraction=XXHASH64
+plugin_load_add=group_replication.so
+#group_replication_group_name="test"
+group_replication_start_on_boot=OFF
+group_replication_local_address="192.168.139.132:33061"
+report_host=192.168.139.132
+group_replication_group_seeds="192.168.139.132:33061,192.168.139.137:330061,192.168.139.134:33061"
+group_replication_group_name="234a6abe-e1ea-11f0-9e66-000c29f19b39"
+#innodb_data_file_path=ibdata1:12M:autoextend
+innodb_directories=/u101/mysql/mydata
+#innodb_directories=/var/lib/mysql:/u101/mysql/mydata
+
+
+[client]
+port=3340
+socket=/u101/mysql/data/mysql.sock
+
+
+
+
+
+[mysqld]
+prompt=\u$\d>
+
+server-id = 1
+bind-address = 192.168.139.132
+log-bin=/u101/mysql/binlog/logbin
+log-bin-index=/u101/mysql/binlog/idexlogbin.index
+binlog_expire_logs_seconds = 6042
+#group_replication_ssl_mode=REQUIRED
+# expire_logs-days = 2
+
+slow_query_log
+slow_query_log_file=/u101/mysql/log/slow_query.log
+long-query-time=1
+general_log_file=/u101/mysql/log/loggeneral.log
+port=3340
+datadir=/u101/mysql/data
+socket=/u101/mysql/data/mysql.sock
+#socket=/var/lib/mysql/mysql.sock
+innodb_directories=/u101/mysql/mydata
+log-error=/u101/mysql/log/mysqld.log
+#pid-file=/var/run/mysqld/mysqld.pid
+
+sort_buffer_size=16388608
+
+bind-address=0.0.0.0
+
+
+[client]
+port=3340
+socket=/u101/mysql/data/mysql.sock
+
+
+
+-- Crée un root accessible depuis toutes les IP (ou depuis ton réseau interne)
+CREATE USER 'root'@'%' IDENTIFIED BY 'Amadou2020@';
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
+
+-- Optionnel : pour restreindre au réseau interne 192.168.139.x
+-- CREATE USER 'root'@'192.168.139.%' IDENTIFIED BY 'Amadou2020@';
+-- GRANT ALL PRIVILEGES ON *.* TO 'root'@'192.168.139.%' WITH GRANT OPTION;
+-- FLUSH PRIVILEGES;
+
+mysqlsh --no-defaults root@192.168.139.139:3340 --password=Amadou2020@
+
+
+configuration des instance:
+il faut creer le user root dans chaque instance mysql
+CREATE USER 'root'@'%' IDENTIFIED BY 'Amadou2020@';
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
+
+ouvrir le port:
+ sudo firewall-cmd --permanent --add-port=3340/tcp
+
+sudo firewall-cmd --reload
+sudo firewall-cmd --list-ports
+
+semanage port -a -t mysqld_port_t -p tcp 3340
+
+dba.configureInstance('root@192.168.139.147:3340', {password: 'Amadou2020@'});
+ dba.configureInstance('root@192.168.139.146:3340', {password: 'Amadou2020@'});
+ dba.configureInstance('root@192.168.139.140:3340', {password: 'Amadou2020@'});
+
+cluster.setPrimaryInstance("root@192.168.139.140")
+
+pour promouvoir le  tant que primaire
+
+cluster.setPrimaryInstance("root@192.168.139.140:3340");
+
+ea4d38c9-0469-11f1-b864-000c298d4f42
+
+
+SET GLOBAL group_replication_bootstrap_group=ON;
+START GROUP_REPLICATION;
+SET GLOBAL group_replication_bootstrap_group=OFF;
+START GROUP_REPLICATION;
+
+cluster.forceQuorumUsingPartitionOf("root@192.168.139.139:3340")
+
+CREATE TABLE IF NOT EXISTS utilisateurs (
+        id INT NOT NULL AUTO_INCREMENT,
+       nom VARCHAR(50) NOT NULL,
+       email VARCHAR(100) NOT NULL UNIQUE,
+        date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (id)
+
+
+
+creation de cluster:
+var cluster = dba.createCluster('MyCluster');
+var cluster = dba.getCluster('MyCluster');
+AJOUT DES INSTANCE:
+cluster.addInstance('root@192.168.139.140:3340', {password: 'Amadou2020@'});
+ cluster.addInstance('root@192.168.139.141:3340', {password: 'Amadou2020@'});
+
+pour  voir le status du cluster
+var cluster = dba.getCluster()
+cluster.status();
+
+
+installation de mysqlrouter:
+
+
+sudo rpm --import https://repo.mysql.com/RPM-GPG-KEY-mysql-2022
+sudo rpm --import https://repo.mysql.com/RPM-GPG-KEY-mysql-2023
+
+sudo dnf clean all
+sudo dnf makecache
+sudo dnf install mysql-router
+
+pour voir la version
+mysqlrouter --version
+
+
+creer le user; a faire sur le primaire
+
+CREATE USER 'router'@'%' IDENTIFIED BY 'Amadou2020@';
+GRANT ALL PRIVILEGES ON *.* TO 'router'@'%' WITH GRANT OPTION;
+FLUSH PRIVILEGES;
+
+mysqlrouter --bootstrap router@192.168.139.139:3340   --directory /etc/mysqlrouter   --user mysqlrouter
+
+
+
+
+
+demarrer:
+systemctl enable mysqlrouter
+systemctl start mysqlrouter
+
+mysql -h 192.168.139.132 -P 6446 -u root -p 
+
+
+
+[root@localhost ~]# mysqlrouter --bootstrap router@192.168.139.139:3340   --directory /etc/mysqlrouter   --user mysqlrouter
+Please enter MySQL password for router:
+# Bootstrapping MySQL Router 8.0.44 (MySQL Community - GPL) instance at '/etc/mysqlrouter'...
+
+- Creating account(s) (only those that are needed, if any)
+- Verifying account (using it to run SQL queries that would be run by Router)
+- Storing account in keyring
+- Adjusting permissions of generated files
+- Creating configuration /etc/mysqlrouter/mysqlrouter.conf
+
+Existing configurations backed up to '/etc/mysqlrouter/mysqlrouter.conf.bak'
+
+# MySQL Router configured for the InnoDB Cluster 'MyCluster'
+
+After this MySQL Router has been started with the generated configuration
+
+    $ mysqlrouter -c /etc/mysqlrouter/mysqlrouter.conf
+
+InnoDB Cluster 'MyCluster' can be reached by connecting to:
+
+## MySQL Classic protocol
+
+- Read/Write Connections: localhost:6446
+- Read/Only Connections:  localhost:6447
+
+## MySQL X protocol
+
+- Read/Write Connections: localhost:6448
+- Read/Only Connections:  localhost:6449
+
+CREATE USER 'test'@'%' IDENTIFIED BY 'Amadou2020@';
+
+
+
+
+
+
+
+
+server_id=3
+bind-address=0.0.0.0
+report_host=192.168.139.139
+binlog_format=ROW
+log_bin=mysql-bin
+gtid_mode=ON
+enforce_gtid_consistency=ON
+master_info_repository=TABLE
+relay_log_info_repository=TABLE
+transaction_write_set_extraction=XXHASH64
+loose-group_replication_bootstrap_group=OFF
+loose-group_replication_start_on_boot=OFF
+loose-group_replication_group_name="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+loose-group_replication_local_address="192.168.139.147:33061"
+loose-group_replication_group_seeds="192.168.139.139:33061,192.168.139.146:33061,192.168.139.147:33061"
+group_replication_bootstrap_group=OFF
+
+
+
+
+
+
+server_id=2
+bind-address=0.0.0.0
+report_host=192.168.139.146
+binlog_format=ROW
+log_bin=mysql-bin
+gtid_mode=ON
+enforce_gtid_consistency=ON
+master_info_repository=TABLE
+relay_log_info_repository=TABLE
+transaction_write_set_extraction=XXHASH64
+loose-group_replication_bootstrap_group=OFF
+loose-group_replication_start_on_boot=OFF
+loose-group_replication_group_name="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+loose-group_replication_local_address="192.168.139.146:33061"
+loose-group_replication_group_seeds="192.168.139.139:33061,192.168.139.146:33061,192.168.139.147:33061"
+group_replication_bootstrap_group=OFF
+
+
+
+
+
+
+
+
+
+
+
+
+
+

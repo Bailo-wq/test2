@@ -1,0 +1,189 @@
+gestion de sauvegarde:
+creer un user dedier:
+
+CREATE USER 'backup_user'@'%' 
+IDENTIFIED BY 'Amadou2020@';
+
+GRANT
+  SELECT,
+  SHOW VIEW,
+  TRIGGER,
+  EVENT,
+  RELOAD,
+  LOCK TABLES,
+  PROCESS
+ON *.* TO 'backup_user'@'%';
+
+GRANT
+  REPLICATION CLIENT
+ON *.* TO 'backup_user'@'%';
+
+GRANT BACKUP_ADMIN ON *.* TO 'backup_user'@'%';
+FLUSH PRIVILEGES;
+
+
+FLUSH PRIVILEGES;
+
+--Étape 2 — Installer XtraBackup (sur le nœud backup) de preference sur l'un des noeud en readonly
+
+dnf install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm
+percona-release setup pxb-80
+dnf install -y percona-xtrabackup-80
+dnf install -y perl-English
+
+
+
+--verification de la version:
+xtrabackup --version
+
+--il faut sauvegarde le mot de passe du user:
+dans le fichier my.cnf
+
+[client]
+user=backup_user
+password=MAmadou2020@
+
+--creation du repertoir de sauvegarde:
+mkdir -p /U102/backup/full
+mkdir -p /U102/backup/logs
+
+-- permission
+ 
+chown -R mysql:mysql /U102/backup
+chmod -R 750 /U102/backup
+
+ajouter le fichier: /usr/local/bin/backup_innodb_cluster.sh
+
+
+#!/bin/bash
+
+DATE=$(date +%F)
+BASE_DIR="/U102/backup/full"
+BACKUP_DIR="$BASE_DIR/$DATE"
+LOG_DIR="/U102/backup/logs"
+LOGFILE="$LOG_DIR/backup_$DATE.log"
+
+# Création des répertoires si absents
+mkdir -p "$BACKUP_DIR" "$LOG_DIR"
+
+xtrabackup --backup \
+ --target-dir="$BACKUP_DIR" \
+ --parallel=4 \
+ --compress \
+ #--binlog-info=ON \
+ >> "$LOGFILE" 2>&1
+
+if [ $? -eq 0 ]; then
+  echo "[$(date)] Backup OK" >> "$LOGFILE"
+else
+  echo "[$(date)] Backup FAILED" >> "$LOGFILE"
+fi
+
+permission:
+chmod +x /usr/local/bin/backup_innodb_cluster.sh
+
+
+--planification chaque jour à 02h
+crontab -e
+
+0 2 * * * /usr/local/backup_innodb_cluster.sh
+
+
+-- il faut ajouter le reparoire
+mkdir -p /U102/backup/journal
+mkdir -p /U102/backup/logs
+chmod -R 750 /U102/backup
+chown -R mysql:mysql /U102/backup
+
+--Dans le /usr/local/backup_innodb_journal2.sh il faut ajouter:
+-- ce script gere les deux bakup full à 02 et incrmental toute les 30 min sur des repertoire different /U102/backup/full et /U102/backup/journal
+#!/bin/bash
+
+# ---------------------------
+# Configuration
+# ---------------------------
+BASE_DIR_INC="/U102/backup/journal"   # dossier incrémental
+BASE_DIR_FULL="/U102/backup/full"     # dossier full
+LOG_DIR="/U102/backup/logs"
+mkdir -p "$BASE_DIR_INC" "$BASE_DIR_FULL" "$LOG_DIR"
+
+DATE=$(date +%F)
+HOUR=$(date +%H%M)
+LOGFILE="$LOG_DIR/backup_journal_${DATE}_${HOUR}.log"
+
+# ---------------------------
+# Déterminer le type de backup
+# ---------------------------
+if [ "$HOUR" == "0200" ]; then
+    BACKUP_TYPE="full"
+    TARGET_DIR="$BASE_DIR_FULL/$DATE"
+else
+    BACKUP_TYPE="incremental"
+    # Trouver le dernier full du jour
+    LAST_FULL=$(ls -td $BASE_DIR_FULL/* | grep "$DATE" | tail -1)
+    if [ -z "$LAST_FULL" ]; then
+        echo "[$(date)] Aucun full trouvé pour $DATE, on fait un full à la place" | tee -a "$LOGFILE"
+        BACKUP_TYPE="full"
+        TARGET_DIR="$BASE_DIR_FULL/$DATE"
+    else
+        TARGET_DIR="$BASE_DIR_INC/inc_${DATE}_${HOUR}"
+    fi
+fi
+
+# ---------------------------
+# Création du répertoire
+# ---------------------------
+mkdir -p "$TARGET_DIR"
+
+# ---------------------------
+# Exécution XtraBackup
+# ---------------------------
+if [ "$BACKUP_TYPE" == "full" ]; then
+    echo "[$(date)] Starting FULL backup -> $TARGET_DIR" | tee -a "$LOGFILE"
+    xtrabackup --backup \
+        --target-dir="$TARGET_DIR" \
+        --parallel=4 \
+        --compress \
+        >> "$LOGFILE" 2>&1
+else
+    echo "[$(date)] Starting INCREMENTAL backup -> $TARGET_DIR" | tee -a "$LOGFILE"
+    xtrabackup --backup \
+        --target-dir="$TARGET_DIR" \
+        --incremental-basedir="$LAST_FULL" \
+        --parallel=4 \
+        --compress \
+        >> "$LOGFILE" 2>&1
+fi
+
+# ---------------------------
+# Vérification succès
+# ---------------------------
+if [ $? -eq 0 ]; then
+    echo "[$(date)] $BACKUP_TYPE Backup OK" | tee -a "$LOGFILE"
+else
+    echo "[$(date)] $BACKUP_TYPE Backup FAILED" | tee -a "$LOGFILE"
+fi
+
+# ---------------------------
+# Rotation automatique
+# ---------------------------
+# Full : garder 7 jours
+find $BASE_DIR_FULL -maxdepth 1 -type d -mtime +7 -exec rm -rf {} \;
+
+# Incrémental : garder 2 jours
+find $BASE_DIR_INC -maxdepth 1 -type d -name "inc_*" -mtime +2 -exec rm -rf {} \;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

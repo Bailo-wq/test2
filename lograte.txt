@@ -1,0 +1,43 @@
+/u101/mysql/log/slow_query.log {
+    size 2M
+    rotate 30
+    missingok
+    notifempty
+    compress
+    delaycompress
+
+    dateext
+    dateformat -%Y-%m-%d-%H-%M
+
+    create 0640 mysql adm
+
+    sharedscripts
+    postrotate
+        test -x /usr/bin/mysqladmin || exit 0
+        if [ -f /run/mysqld/mysqld.pid ]; then
+            /usr/bin/mysqladmin --defaults-file=/etc/mysql/debian.cnf flush-logs
+        fi
+    endscript
+}
+
+/u101/mysql/log/mysqld.log {
+    size 2M
+    rotate 30
+    missingok
+    notifempty
+    compress
+    delaycompress
+
+    dateext
+    dateformat -%Y-%m-%d-%H-%M
+
+    create 0640 mysql adm
+
+    sharedscripts
+    postrotate
+        test -x /usr/bin/mysqladmin || exit 0
+        if [ -f /run/mysqld/mysqld.pid ]; then
+            /usr/bin/mysqladmin --defaults-file=/etc/mysql/debian.cnf flush-logs
+        fi
+    endscript
+}

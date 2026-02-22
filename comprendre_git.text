@@ -1,0 +1,20 @@
+
+# pour se mettre dans une branch
+
+git origin  https://github.com/quelquechose/monrepo.git (fetch)
+# pour ajouter un fichier; on creer le fichier en locale avec vi ou autre on ajouter les script
+
+# en suite on lance la commande
+git add file_name
+# exple:
+git add configuration_cluster_mysql.txt
+
+# on fait un commit
+ git commit -m "Ajout du fichier configuration  mysql"
+
+# ensuit on fait un git pull pour pousser me ficher dans le depot git
+
+git push -u origin main
+
+# pour modifier le ficher il faut modifier le ficher puit faire un git add, un commit et un push
+

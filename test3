@@ -1,1 +1,51 @@
 select count(*) from 
+
+
+
+REP_PG="$HOME/adm/dba"
+# L'alias de la base PostgreSQL clone en question
+DB_AUX=$1
+# Emplacement des Archives sur la machine Cible
+PG_ARCHIVE='/pgarchive'
+# Fichier journal du script.
+FIC_LOG=${REP_PG}/log/pg_reset_wal_cleanup_val_${DB_AUX:-Marg}$(date +'_le%d%m%Y').log
+# Fichier journal temporaire.
+LOG_TMP=$(dirname $FIC_LOG)/resetxlog_val_${DB_AUX:-Marg}$$$(date +'_le%d%m%Y').log
+# Menage des fichiers journaux (7 jours).
+find $(dirname $FIC_LOG) -name "$(echo $(basename $FIC_LOG .log)|sed 's/[0-9]*$//')*.log" -ctime +7 2>/dev/null -delete
+# Fichier des parametres concernes par le script save_rman_dbpostgres_drp.sh de toutes les bases sujet de la sauvegarde.
+FIC_PAR=${REP_PG}/par/pg_param_clone_instance_val.psb
+
+>$FIC_LOG
+if ! cat<<EOF_CAT | tee -a $FIC_LOG
+- Debut de la Reinitialisation des WALs et le Nettoyage des archives de l'instance PostgreSQL $DB_AUX $(date +'le %d/%m/%Y a %H:%M:%S').
+  |
+  \`--> L'argument l'alias de la base est :  ${DB_AUX:-Marg}
+  - Fichier journal disponible sur la machine $(hostname)
+  |
+  \`--> $FIC_LOG
+EOF_CAT
+then echo "- Probleme au niveau de la creation du fichier log ci-dessous :\n    |\n    \`--> $FIC_LOG"
+  exit 1; fi
+#
+
+# Controle de l'argument.
+if [ $# -ne 1 ]; then cat<<EOF_CAT | tee -a $FIC_LOG
+
+- Le script necessite un seul argument : l'alias de la base PostgreSQL clone en question !
+EOF_CAT
+  exit 1
+elif [ ! -f $FIC_PAR ] ; then cat<<EOF_CAT | tee -a $FIC_LOG
+
+- Le fichier des parametres inexistant !
+  $FIC_PAR
+EOF_CAT
+  exit 1
+elif ! /bin/egrep $DB_AUX $FIC_PAR >/dev/null 2>&1 ; then cat<<EOF_CAT | tee -a $FIC_LOG
+
+- $DB_AUX est introuvable dans $FIC_PAR !
+EOF_CAT
+  exit 1
+else cat<<EOF_CAT | tee -a $FIC_LOG
+
+- Les parametres pour l'argument $DB_AUX sont  :
